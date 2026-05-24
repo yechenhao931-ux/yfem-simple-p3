@@ -1,20 +1,8 @@
 //                                MFEM Example 16
 //
-// Compile with: make ex16
+// Compile with: cmake --build build --target ex16
 //
-// Sample runs:  ex16
-//               ex16 -m ../data/inline-tri.mesh
-//               ex16 -m ../data/disc-nurbs.mesh -tf 2
-//               ex16 -s 21 -a 0.0 -k 1.0
-//               ex16 -s 22 -a 1.0 -k 0.0
-//               ex16 -s 23 -a 0.5 -k 0.5 -o 4
-//               ex16 -s 4 -dt 1.0e-4 -tf 4.0e-2 -vs 40
-//               ex16 -m ../data/fichera-q2.mesh
-//               ex16 -m ../data/fichera-mixed.mesh
-//               ex16 -m ../data/escher.mesh
-//               ex16 -m ../data/beam-tet.mesh -tf 10 -dt 0.1
-//               ex16 -m ../data/amr-quad.mesh -o 4 -r 0
-//               ex16 -m ../data/amr-hex.mesh -o 2 -r 0
+// Sample run:   ./build/ex16 -no-vis -tf 0.02 -dt 0.01
 //
 // Description:  This example solves a time dependent nonlinear heat equation
 //               problem of the form du/dt = C(u), with a non-linear diffusion
@@ -102,7 +90,7 @@ int main(int argc, char *argv[])
    real_t alpha = 1.0e-2;
    real_t kappa = 0.5;
 
-   bool visualization = true;
+   bool visualization = false;
    bool visit = false;
    int vis_steps = 5;
 
@@ -128,10 +116,10 @@ int main(int argc, char *argv[])
                   "Kappa coefficient offset.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
-                  "Enable or disable GLVis visualization.");
+                  "Compatibility option; visualization is not built.");
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
-                  "Save data files for VisIt (visit.llnl.gov) visualization.");
+                  "Compatibility option; VisIt output is not built.");
    args.AddOption(&vis_steps, "-vs", "--visualization-steps",
                   "Visualize every n-th timestep.");
    args.Parse();
@@ -141,6 +129,8 @@ int main(int argc, char *argv[])
       return 1;
    }
    args.PrintOptions(cout);
+   (void)visualization;
+   (void)visit;
 
    // 2. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral and hexahedral meshes with the same code.
@@ -177,7 +167,7 @@ int main(int argc, char *argv[])
    Vector u;
    u_gf.GetTrueDofs(u);
 
-   // 7. Initialize the conduction operator and the visualization.
+   // 7. Initialize the conduction operator.
    ConductionOperator oper(fespace, alpha, kappa, u);
 
    u_gf.SetFromTrueDofs(u);
@@ -188,39 +178,6 @@ int main(int argc, char *argv[])
       ofstream osol("ex16-init.gf");
       osol.precision(precision);
       u_gf.Save(osol);
-   }
-
-   VisItDataCollection visit_dc("Example16", mesh);
-   visit_dc.RegisterField("temperature", &u_gf);
-   if (visit)
-   {
-      visit_dc.SetCycle(0);
-      visit_dc.SetTime(0.0);
-      visit_dc.Save();
-   }
-
-   socketstream sout;
-   if (visualization)
-   {
-      char vishost[] = "localhost";
-      int  visport   = 19916;
-      sout.open(vishost, visport);
-      if (!sout)
-      {
-         cout << "Unable to connect to GLVis server at "
-              << vishost << ':' << visport << endl;
-         visualization = false;
-         cout << "GLVis visualization disabled.\n";
-      }
-      else
-      {
-         sout.precision(precision);
-         sout << "solution\n" << *mesh << u_gf;
-         sout << "pause\n";
-         sout << flush;
-         cout << "GLVis visualization paused."
-              << " Press space (in the GLVis window) to resume it.\n";
-      }
    }
 
    // 8. Perform time-integration (looping over the time iterations, ti, with a
@@ -243,23 +200,11 @@ int main(int argc, char *argv[])
          cout << "step " << ti << ", t = " << t << endl;
 
          u_gf.SetFromTrueDofs(u);
-         if (visualization)
-         {
-            sout << "solution\n" << *mesh << u_gf << flush;
-         }
-
-         if (visit)
-         {
-            visit_dc.SetCycle(ti);
-            visit_dc.SetTime(t);
-            visit_dc.Save();
-         }
       }
       oper.SetParameters(u);
    }
 
-   // 9. Save the final solution. This output can be viewed later using GLVis:
-   //    "glvis -m ex16.mesh -g ex16-final.gf".
+   // 9. Save the final solution.
    {
       ofstream osol("ex16-final.gf");
       osol.precision(precision);

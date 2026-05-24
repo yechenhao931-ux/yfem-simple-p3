@@ -30,7 +30,6 @@
 #include "bilinearform.hpp"
 #include "transfer.hpp"
 #include "hybridization.hpp"
-#include "datacollection.hpp"
 #include "staticcond.hpp"
 #include "restriction.hpp"
 #include "quadinterpolator.hpp"
