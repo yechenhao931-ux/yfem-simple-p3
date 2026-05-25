@@ -114,9 +114,9 @@ static void make_dir(const string &path)
 int main(int argc, char *argv[])
 {
    // 1. Options.
-   const char *mesh_file = "../data/star.mesh";
+   const char *mesh_file = "../data/box.mesh";
    const char *out_dir = "heat_dataset";
-   int ref_levels = 3;
+   int ref_levels = 1;
    int order = 1;             // order 1 -> graph nodes == mesh vertices
    int num_samples = 64;
    int ode_solver_type = 23;  // SDIRK33Solver, as in ex16
