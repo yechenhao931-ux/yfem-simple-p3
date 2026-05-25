@@ -80,7 +80,7 @@ real_t InitialTemperature(const Vector &x);
 int main(int argc, char *argv[])
 {
    // 1. Parse command-line options.
-   const char *mesh_file = "data/star.mesh";
+   const char *mesh_file = "../data/star.mesh";
    int ref_levels = 2;
    int order = 2;
 
