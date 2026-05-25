@@ -1,0 +1,6 @@
+# Plain-PyTorch GNN surrogate (no torch_geometric / numpy required).
+# CPU-only install:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# or simply (PyPI default wheel, also runs on CPU):
+#   pip install "torch>=2.4"
+torch>=2.4

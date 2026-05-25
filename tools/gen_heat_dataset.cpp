@@ -21,7 +21,7 @@
 //
 //               Output layout (under --out-dir):
 //                 dataset.json      global metadata + parameter ranges
-//                 graph_nodes.csv   N rows: x,y            (dof order)
+//                 graph_nodes.csv   N rows: x,y[,z]        (dof order)
 //                 graph_edges.csv   M rows: src,dst        (undirected, once)
 //                 manifest.csv      one row per sample with its parameters
 //                 sample_XXXXX/frames.csv   num_frames x N temperature field
@@ -79,15 +79,16 @@ public:
    ~ConductionOperator() override;
 };
 
-// Parameterized initial condition: a circular "hot blob".
+// Parameterized initial condition: a "hot blob" (disk in 2D, sphere in 3D).
 struct BlobIC
 {
-   real_t cx, cy, r, hot, bg;
+   real_t cx, cy, cz, r, hot, bg;
    real_t operator()(const Vector &x) const
    {
-      const real_t dx = x[0] - cx;
-      const real_t dy = (x.Size() > 1) ? x[1] - cy : 0.0;
-      return (std::sqrt(dx * dx + dy * dy) < r) ? hot : bg;
+      real_t d2 = (x[0] - cx) * (x[0] - cx);
+      if (x.Size() > 1) { const real_t dy = x[1] - cy; d2 += dy * dy; }
+      if (x.Size() > 2) { const real_t dz = x[2] - cz; d2 += dz * dz; }
+      return (std::sqrt(d2) < r) ? hot : bg;
    }
 };
 
@@ -128,7 +129,7 @@ int main(int argc, char *argv[])
    // Randomized parameter ranges.
    real_t alpha_min = 0.0, alpha_max = 2.0e-2;
    real_t kappa_min = 0.1, kappa_max = 1.0;
-   real_t r_min = 0.2, r_max = 0.8;
+   real_t r_min = 0.5, r_max = 1.5;
    real_t hot_min = 1.5, hot_max = 3.0;
    real_t bg = 1.0;
 
@@ -184,22 +185,31 @@ int main(int argc, char *argv[])
    {
       return p.Size() > 1 ? p[1] : real_t(0.0);
    });
-   GridFunction node_x(&fespace), node_y(&fespace);
+   FunctionCoefficient zcoef([](const Vector &p) -> real_t
+   {
+      return p.Size() > 2 ? p[2] : real_t(0.0);
+   });
+   GridFunction node_x(&fespace), node_y(&fespace), node_z(&fespace);
    node_x.ProjectCoefficient(xcoef);
    node_y.ProjectCoefficient(ycoef);
+   node_z.ProjectCoefficient(zcoef);
 
-   // 4. Edges in dof order. For order-1 H1 the element dofs are the element
-   //    vertices in cyclic boundary order, so connecting consecutive dofs
-   //    yields exactly the mesh edges (no spurious quad diagonals).
+   // 4. Edges in dof order, taken from each element's reference edge table so
+   //    the connectivity is correct for any element type (triangles, quads,
+   //    tetrahedra, hexes, ...). For order-1 H1 the first entries of the element
+   //    dof list are its vertex dofs in local order, so the local edge endpoints
+   //    from GetEdgeVertices index directly into that list.
    set<pair<int, int>> edge_set;
    Array<int> edofs;
    for (int e = 0; e < mesh.GetNE(); ++e)
    {
       fespace.GetElementDofs(e, edofs);
-      const int ne = edofs.Size();
-      for (int k = 0; k < ne; ++k)
+      const Element *el = mesh.GetElement(e);
+      const int n_edges = el->GetNEdges();
+      for (int k = 0; k < n_edges; ++k)
       {
-         int a = edofs[k], b = edofs[(k + 1) % ne];
+         const int *ev = el->GetEdgeVertices(k); // local vertex indices
+         int a = edofs[ev[0]], b = edofs[ev[1]];
          if (a == b) { continue; }
          if (a > b) { std::swap(a, b); }
          edge_set.insert({a, b});
@@ -214,10 +224,12 @@ int main(int argc, char *argv[])
    {
       ofstream nf(root + "/graph_nodes.csv");
       nf.precision(9);
-      nf << "x,y\n";
+      nf << (dim > 2 ? "x,y,z\n" : "x,y\n");
       for (int i = 0; i < N; ++i)
       {
-         nf << node_x(i) << "," << node_y(i) << "\n";
+         nf << node_x(i) << "," << node_y(i);
+         if (dim > 2) { nf << "," << node_z(i); }
+         nf << "\n";
       }
    }
    {
@@ -257,10 +269,11 @@ int main(int argc, char *argv[])
    mesh.GetBoundingBox(bb_min, bb_max, max(order, 1));
    const real_t mx = 0.15 * (bb_max(0) - bb_min(0));
    const real_t my = (dim > 1) ? 0.15 * (bb_max(1) - bb_min(1)) : 0.0;
+   const real_t mz = (dim > 2) ? 0.15 * (bb_max(2) - bb_min(2)) : 0.0;
 
    ofstream manifest(root + "/manifest.csv");
    manifest.precision(9);
-   manifest << "sample,alpha,kappa,blob_cx,blob_cy,blob_r,hot,bg\n";
+   manifest << "sample,alpha,kappa,blob_cx,blob_cy,blob_cz,blob_r,hot,bg\n";
 
    mt19937 rng((unsigned)seed);
    uniform_real_distribution<real_t> U(0.0, 1.0);
@@ -275,6 +288,7 @@ int main(int argc, char *argv[])
       BlobIC ic;
       ic.cx = unif(bb_min(0) + mx, bb_max(0) - mx);
       ic.cy = (dim > 1) ? unif(bb_min(1) + my, bb_max(1) - my) : 0.0;
+      ic.cz = (dim > 2) ? unif(bb_min(2) + mz, bb_max(2) - mz) : 0.0;
       ic.r = unif(r_min, r_max);
       ic.hot = unif(hot_min, hot_max);
       ic.bg = bg;
@@ -319,7 +333,8 @@ int main(int argc, char *argv[])
       }
 
       manifest << s << "," << alpha << "," << kappa << "," << ic.cx << ","
-               << ic.cy << "," << ic.r << "," << ic.hot << "," << ic.bg << "\n";
+               << ic.cy << "," << ic.cz << "," << ic.r << "," << ic.hot << ","
+               << ic.bg << "\n";
 
       if ((s + 1) % 10 == 0 || s + 1 == num_samples)
       {

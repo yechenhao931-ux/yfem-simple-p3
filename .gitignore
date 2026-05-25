@@ -8,6 +8,12 @@ CMakeFiles/
 *.dylib
 *.dSYM
 
+# ML pipeline artifacts (datasets and checkpoints are regenerable)
+/ml/data/
+/ml/checkpoints/
+__pycache__/
+*.pyc
+
 # Editor and OS files
 /.cache/
 /.vscode/
