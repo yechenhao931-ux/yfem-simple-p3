@@ -17,6 +17,12 @@
 
 #define MFEM_USE_DOUBLE
 #define MFEM_USE_MEMALLOC
+#if defined(__APPLE__)
 #define MFEM_TIMER_TYPE 4
+#elif defined(_WIN32)
+#define MFEM_TIMER_TYPE 3
+#else
+#define MFEM_TIMER_TYPE 2
+#endif
 
 #endif

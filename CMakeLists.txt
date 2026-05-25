@@ -86,3 +86,9 @@ foreach(example ex1 ex16)
   target_link_libraries(${example} PRIVATE mfem)
   yfem_apply_compile_options(${example})
 endforeach()
+
+# Data factory: batch transient-heat FEM runs exported as graph time-series
+# for training a GNN surrogate.
+add_executable(gen_heat_dataset tools/gen_heat_dataset.cpp)
+target_link_libraries(gen_heat_dataset PRIVATE mfem)
+yfem_apply_compile_options(gen_heat_dataset)
